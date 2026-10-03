@@ -20,7 +20,7 @@ public class JsonCategoryMapper {
 
 
     public List<KworkCategoryDto> map(){
-        try(InputStream inputStream = getClass().getResourceAsStream("kwork_categories.json");){
+        try(InputStream inputStream = getClass().getResourceAsStream("/kwork_categories.json");){
 
             return objectMapper.readValue(inputStream, new TypeReference<>() {});
         } catch (IOException e) {

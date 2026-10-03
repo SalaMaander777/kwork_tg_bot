@@ -2,7 +2,7 @@ spring:
   application:
     name: TelegramKworkBot
   datasource:
-    url: jdbc:postgresql::/localhost:5432/mydb
+    url: jdbc:postgresql://localhost:5432/mydb
     username: postgres
     password: postgres
 
@@ -16,7 +16,7 @@ spring:
 
 
 bot:
-  token: {token}
+  token: ${BOT_TOKEN}
 
 
 logging:

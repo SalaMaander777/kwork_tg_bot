@@ -1,34 +1,53 @@
 package org.example.telegramkworkbot.router;
 
-
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.telegramkworkbot.commands.CommandHandler;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
-@Component
 @Slf4j
-@RequiredArgsConstructor
+@Component
 public class CommandRouter {
 
-    private final List<CommandHandler> handlers;
+    private final Map<String, CommandHandler> handlers;
 
-
-    public void route(Message message) {
-        String text = message.getText();
-
-        for (CommandHandler handler: handlers){
-            if (handler.command().equals(text)){
-                handler.handle(message);
-                return;
-            }
-        }
-
-        log.debug("Unknown command");
+    public CommandRouter(List<CommandHandler> handlers) {
+        // toMap бросит исключение при старте, если у двух хендлеров одинаковая команда
+        this.handlers = handlers.stream()
+                .collect(Collectors.toMap(CommandHandler::command, Function.identity()));
     }
 
+    public void route(Message message) {
+        String command = extractCommand(message.getText());
+        if (command == null) {
+            return; // обычный текст, не команда
+        }
 
+        CommandHandler handler = handlers.get(command);
+        if (handler == null) {
+            log.debug("Unknown command: {}", command);
+            return;
+        }
+        handler.handle(message);
+    }
+
+    /**
+     * "/start" -> "/start", "/start payload" -> "/start",
+     * "/start@my_bot" -> "/start", "hello" -> null
+     */
+    static String extractCommand(String text) {
+        if (text == null || !text.startsWith("/")) {
+            return null;
+        }
+        String firstWord = text.split("\\s+", 2)[0];
+        int at = firstWord.indexOf('@');
+        String command = at < 0 ? firstWord : firstWord.substring(0, at);
+        return command.toLowerCase(Locale.ROOT);
+    }
 }
