@@ -6,5 +6,8 @@ import java.util.List;
 public interface LlmClient {
 
     /** @throws LlmException если модель недоступна или вернула пустой ответ */
-    String complete(List<ChatMessage> messages);
+    LlmResult complete(List<ChatMessage> messages, LlmOptions options);
+
+    /** Модель, которая используется, если в options она не задана. */
+    String defaultModel();
 }

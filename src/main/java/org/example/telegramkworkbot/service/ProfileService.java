@@ -14,6 +14,8 @@ import org.example.telegramkworkbot.message.TextMessage;
 import org.example.telegramkworkbot.repository.ProfileRepo;
 import org.example.telegramkworkbot.sender.MessageSender;
 import org.example.telegramkworkbot.text.TextStateHandler;
+import org.example.telegramkworkbot.tracking.EventRecorder;
+import org.example.telegramkworkbot.tracking.EventType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
@@ -48,6 +50,7 @@ public class ProfileService implements CallbackHandler, TextStateHandler {
     private final UserService userService;
     private final ProfileRepo profileRepo;
     private final MessageSender sender;
+    private final EventRecorder events;
 
     @Override
     public String action() {
@@ -83,6 +86,7 @@ public class ProfileService implements CallbackHandler, TextStateHandler {
     public void handle(Message message) {
         Long userId = message.getFrom().getId();
         save(userId, Html.truncate(message.getText().strip(), MAX_ABOUT_LENGTH));
+        events.record(userId, EventType.PROFILE_SAVED);
         userService.setState(userId, UserState.ACTIVE);
         sender.send(new TextMessage(message.getChatId(), READY));
     }
@@ -100,6 +104,7 @@ public class ProfileService implements CallbackHandler, TextStateHandler {
                     return; // старая кнопка
                 }
                 userService.setState(userId, UserState.ACTIVE);
+                events.record(userId, EventType.PROFILE_SKIPPED);
                 sender.send(new EditMessage(chatId, query.getMessage().getMessageId(),
                         "Описание можно добавить позже командой /profile", null));
                 sender.send(new TextMessage(chatId, READY));

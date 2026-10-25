@@ -4,8 +4,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.telegramkworkbot.ai.LlmClient;
 import org.example.telegramkworkbot.ai.LlmException;
+import org.example.telegramkworkbot.ai.LlmOptions;
+import org.example.telegramkworkbot.ai.LlmResult;
 import org.example.telegramkworkbot.entities.KworkEntity;
 import org.example.telegramkworkbot.entities.Proposal;
+import org.example.telegramkworkbot.entities.UserEntity;
 import org.example.telegramkworkbot.message.EditMarkup;
 import org.example.telegramkworkbot.message.EditMessage;
 import org.example.telegramkworkbot.message.Html;
@@ -13,8 +16,13 @@ import org.example.telegramkworkbot.message.TextMessage;
 import org.example.telegramkworkbot.message.TypingAction;
 import org.example.telegramkworkbot.repository.KworkRepo;
 import org.example.telegramkworkbot.repository.ProposalRepo;
+import org.example.telegramkworkbot.repository.UserRepo;
 import org.example.telegramkworkbot.sender.MessageSender;
-import org.springframework.beans.factory.annotation.Value;
+import org.example.telegramkworkbot.settings.SettingsService;
+import org.example.telegramkworkbot.tracking.EventRecorder;
+import org.example.telegramkworkbot.tracking.EventType;
+import org.example.telegramkworkbot.tracking.LlmCallRecorder;
+import org.example.telegramkworkbot.tracking.LlmCallRecorder.LlmCall;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -37,23 +45,30 @@ public class ProposalService {
 
     private final KworkRepo kworkRepo;
     private final ProposalRepo proposalRepo;
+    private final UserRepo userRepo;
     private final ProfileService profileService;
     private final PromptBuilder promptBuilder;
     private final LlmClient llm;
     private final KworkCardFormatter cardFormatter;
     private final ProposalView proposalView;
     private final MessageSender sender;
+    private final SettingsService settings;
+    private final LlmCallRecorder callRecorder;
+    private final EventRecorder events;
 
-    @Value("${ai.daily-limit:20}")
-    private int dailyLimit;
+    /** Персональный лимит пользователя или общий из настроек. */
+    public int dailyLimit(Long userId) {
+        Integer override = userRepo.findById(userId).map(UserEntity::getDailyLimitOverride).orElse(null);
+        return override != null ? override : settings.dailyLimit();
+    }
 
     public boolean limitReached(Long userId) {
         Instant startOfDay = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant();
-        return proposalRepo.countByUserIdAndCreatedAtAfter(userId, startOfDay) >= dailyLimit;
-    }
-
-    public int dailyLimit() {
-        return dailyLimit;
+        boolean reached = proposalRepo.countByUserIdAndCreatedAtAfter(userId, startOfDay) >= dailyLimit(userId);
+        if (reached) {
+            events.record(userId, EventType.LIMIT_HIT);
+        }
+        return reached;
     }
 
     /** Выполняется в отдельном потоке: ответ модели может идти десятки секунд. */
@@ -67,9 +82,13 @@ public class ProposalService {
 
         sender.send(new EditMarkup(chatId, messageId, proposalView.loading()));
         sender.send(new TypingAction(chatId));
-        String text;
+
+        LlmResult result;
+        Long callId;
         try {
-            text = llm.complete(promptBuilder.build(kwork.get(), profileService.findAbout(userId)));
+            Timed timed = complete(userId, kwork.get(), profileService.findAbout(userId), settings.systemPrompt());
+            result = timed.result();
+            callId = timed.callId();
         } catch (LlmException e) {
             log.warn("Не удалось сгенерировать отклик для заказа {}: {}", kworkId, e.getMessage());
             showCard(chatId, messageId, userId, kwork.get());
@@ -77,8 +96,34 @@ public class ProposalService {
             return;
         }
 
-        Proposal proposal = save(userId, kworkId, Html.truncate(text, MAX_PROPOSAL_LENGTH));
+        Proposal proposal = save(userId, kworkId, Html.truncate(result.text(), MAX_PROPOSAL_LENGTH), callId);
+        events.record(userId, EventType.PROPOSAL_GENERATED, String.valueOf(kworkId));
         render(chatId, messageId, kwork.get(), proposal);
+    }
+
+    public record Timed(LlmResult result, Long callId, long durationMs) {}
+
+    /**
+     * Вызов модели с записью в журнал llm_calls. Используется и ботом, и тестом промпта в админке.
+     *
+     * @throws LlmException если модель не ответила (вызов тоже записывается)
+     */
+    public Timed complete(Long userId, KworkEntity kwork, Optional<String> about, String systemPrompt) {
+        String model = settings.aiModel();
+        Instant startedAt = Instant.now();
+        long start = System.nanoTime();
+        try {
+            LlmResult result = llm.complete(promptBuilder.build(kwork, about, systemPrompt),
+                    new LlmOptions(model, settings.aiTemperature()));
+            long ms = (System.nanoTime() - start) / 1_000_000;
+            Long callId = callRecorder.record(new LlmCall(userId, kwork.getId(), result.model(), startedAt, ms,
+                    true, result.promptTokens(), result.completionTokens(), null));
+            return new Timed(result, callId, ms);
+        } catch (LlmException e) {
+            long ms = (System.nanoTime() - start) / 1_000_000;
+            callRecorder.record(new LlmCall(userId, kwork.getId(), model, startedAt, ms, false, null, null, e.getMessage()));
+            throw e;
+        }
     }
 
     /** Показать конкретный вариант отклика (кнопки «Мой отклик», ◀️ ▶️). */
@@ -86,7 +131,10 @@ public class ProposalService {
         proposalRepo.findById(proposalId)
                 .filter(proposal -> proposal.getUserId().equals(userId))
                 .ifPresent(proposal -> kworkRepo.findById(proposal.getKworkId())
-                        .ifPresent(kwork -> render(chatId, messageId, kwork, proposal)));
+                        .ifPresent(kwork -> {
+                            events.record(userId, EventType.PROPOSAL_VIEWED, String.valueOf(proposalId));
+                            render(chatId, messageId, kwork, proposal);
+                        }));
     }
 
     /** Вернуть сообщению вид карточки заказа. */
@@ -106,12 +154,13 @@ public class ProposalService {
                 proposalView.text(kwork, proposal), proposalView.keyboard(proposal, variants)));
     }
 
-    private Proposal save(Long userId, Long kworkId, String text) {
+    private Proposal save(Long userId, Long kworkId, String text, Long callId) {
         Proposal proposal = new Proposal();
         proposal.setUserId(userId);
         proposal.setKworkId(kworkId);
         proposal.setText(text);
         proposal.setCreatedAt(Instant.now());
+        proposal.setLlmCallId(callId);
         return proposalRepo.save(proposal);
     }
 }

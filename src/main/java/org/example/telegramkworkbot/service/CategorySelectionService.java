@@ -14,6 +14,8 @@ import org.example.telegramkworkbot.message.Html;
 import org.example.telegramkworkbot.message.KeyboardMessage;
 import org.example.telegramkworkbot.message.TextMessage;
 import org.example.telegramkworkbot.sender.MessageSender;
+import org.example.telegramkworkbot.tracking.EventRecorder;
+import org.example.telegramkworkbot.tracking.EventType;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
@@ -43,6 +45,7 @@ public class CategorySelectionService implements CallbackHandler {
     private final UserService userService;
     private final ProfileService profileService;
     private final MessageSender sender;
+    private final EventRecorder events;
 
     @Override
     public String action() {
@@ -95,6 +98,7 @@ public class CategorySelectionService implements CallbackHandler {
             return false;
         }
         sender.send(new EditMessage(chatId, messageId, summary(selected), null));
+        events.record(userId, EventType.CATEGORIES_SAVED, String.valueOf(selected.size()));
         if (userService.getState(userId) == UserState.CHOOSING_CATEGORY) {
             profileService.askProfile(chatId, userId);
         } else {

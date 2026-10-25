@@ -29,6 +29,14 @@ public class UserEntity {
     @Column(nullable = false)
     private UserState state = UserState.NEW;
 
+    private Instant lastActivityAt;
+
+    @Column(nullable = false)
+    private boolean banned;
+
+    // персональный дневной лимит откликов; null — общий из настроек
+    private Integer dailyLimitOverride;
+
     // id подкатегорий из kwork_categories.json; с ними сравнивается kwork.category_id
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "user_subcategories", joinColumns = @JoinColumn(name = "user_id"))

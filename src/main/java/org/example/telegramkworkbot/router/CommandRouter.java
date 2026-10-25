@@ -2,6 +2,8 @@ package org.example.telegramkworkbot.router;
 
 import lombok.extern.slf4j.Slf4j;
 import org.example.telegramkworkbot.commands.CommandHandler;
+import org.example.telegramkworkbot.tracking.EventRecorder;
+import org.example.telegramkworkbot.tracking.EventType;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 
@@ -16,8 +18,10 @@ import java.util.stream.Collectors;
 public class CommandRouter {
 
     private final Map<String, CommandHandler> handlers;
+    private final EventRecorder events;
 
-    public CommandRouter(List<CommandHandler> handlers) {
+    public CommandRouter(List<CommandHandler> handlers, EventRecorder events) {
+        this.events = events;
         // toMap бросит исключение при старте, если у двух хендлеров одинаковая команда
         this.handlers = handlers.stream()
                 .collect(Collectors.toMap(CommandHandler::command, Function.identity()));
@@ -34,6 +38,7 @@ public class CommandRouter {
             log.debug("Unknown command: {}", command);
             return;
         }
+        events.record(message.getFrom().getId(), EventType.COMMAND, command);
         handler.handle(message);
     }
 

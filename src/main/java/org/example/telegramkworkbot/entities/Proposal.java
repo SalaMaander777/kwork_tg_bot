@@ -29,4 +29,6 @@ public class Proposal {
 
     @Column(nullable = false)
     private Instant createdAt;
+
+    private Long llmCallId;
 }

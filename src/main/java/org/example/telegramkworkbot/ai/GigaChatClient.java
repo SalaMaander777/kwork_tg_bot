@@ -47,16 +47,21 @@ public class GigaChatClient implements LlmClient {
     }
 
     @Override
-    public String complete(List<ChatMessage> messages) {
+    public String defaultModel() {
+        return props.model();
+    }
+
+    @Override
+    public LlmResult complete(List<ChatMessage> messages, LlmOptions options) {
         if (props.basicCredentials() == null) {
             throw new LlmException("Не заданы ключи GigaChat: GIGACHAT_AUTH_KEY или GIGACHAT_CLIENT_ID + GIGACHAT_CLIENT_SECRET");
         }
         acquireSlot();
         try {
-            return chat(messages, token(false));
+            return chat(messages, options, token(false));
         } catch (UnauthorizedException e) {
             // токен могли отозвать раньше срока — получаем новый и пробуем ещё раз
-            return chat(messages, token(true));
+            return chat(messages, options, token(true));
         } finally {
             slots.release();
         }
@@ -74,10 +79,12 @@ public class GigaChatClient implements LlmClient {
         }
     }
 
-    private String chat(List<ChatMessage> messages, String token) {
+    private LlmResult chat(List<ChatMessage> messages, LlmOptions options, String token) {
+        String model = options.model() != null ? options.model() : props.model();
+        double temperature = options.temperature() != null ? options.temperature() : props.temperature();
         ObjectNode body = mapper.createObjectNode()
-                .put("model", props.model())
-                .put("temperature", props.temperature());
+                .put("model", model)
+                .put("temperature", temperature);
         ArrayNode items = body.putArray("messages");
         for (ChatMessage m : messages) {
             items.addObject()
@@ -97,7 +104,11 @@ public class GigaChatClient implements LlmClient {
         if (content.isBlank()) {
             throw new LlmException("GigaChat вернул пустой ответ");
         }
-        return content.strip();
+        JsonNode usage = response.path("usage");
+        return new LlmResult(content.strip(),
+                response.path("model").asText(model),
+                usage.has("prompt_tokens") ? usage.get("prompt_tokens").asInt() : null,
+                usage.has("completion_tokens") ? usage.get("completion_tokens").asInt() : null);
     }
 
     private synchronized String token(boolean forceRefresh) {

@@ -34,3 +34,7 @@ build/
 
 ### macOS ###
 .DS_Store
+
+### Admin UI ###
+admin-ui/node_modules/
+src/main/resources/static/admin/

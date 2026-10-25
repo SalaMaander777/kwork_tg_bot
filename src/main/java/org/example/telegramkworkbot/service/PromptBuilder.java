@@ -17,7 +17,8 @@ public class PromptBuilder {
 
     static final int MAX_DESCRIPTION_LENGTH = 3000;
 
-    static final String SYSTEM = """
+    /** Системный промпт по умолчанию; в работе используется значение из настроек. */
+    public static final String SYSTEM = """
             Ты — опытный фрилансер на бирже Kwork. Пиши отклик на заказ покупателя от первого лица.
 
             Требования:
@@ -31,7 +32,7 @@ public class PromptBuilder {
 
     private final CategoryCatalog catalog;
 
-    public List<ChatMessage> build(KworkEntity kwork, Optional<String> about) {
+    public List<ChatMessage> build(KworkEntity kwork, Optional<String> about, String systemPrompt) {
         StringBuilder sb = new StringBuilder("Заказ: ").append(kwork.getName()).append('\n');
         if (kwork.getCategoryId() != null) {
             catalog.sub(kwork.getCategoryId())
@@ -52,6 +53,6 @@ public class PromptBuilder {
                 .filter(text -> !text.isBlank())
                 .orElse("Описание не заполнено — не указывай конкретный опыт и проекты, пиши в общем виде."));
 
-        return List.of(ChatMessage.system(SYSTEM), ChatMessage.user(sb.toString()));
+        return List.of(ChatMessage.system(systemPrompt), ChatMessage.user(sb.toString()));
     }
 }

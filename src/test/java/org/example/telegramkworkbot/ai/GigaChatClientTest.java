@@ -41,8 +41,8 @@ class GigaChatClientTest {
         server.enqueue(answer("Первый"));
         server.enqueue(answer("Второй"));
 
-        assertThat(client.complete(PROMPT)).isEqualTo("Первый");
-        assertThat(client.complete(PROMPT)).isEqualTo("Второй");
+        assertThat(client.complete(PROMPT, LlmOptions.DEFAULT).text()).isEqualTo("Первый");
+        assertThat(client.complete(PROMPT, LlmOptions.DEFAULT).text()).isEqualTo("Второй");
 
         RecordedRequest oauth = server.takeRequest();
         assertThat(oauth.getPath()).isEqualTo("/oauth");
@@ -62,13 +62,29 @@ class GigaChatClientTest {
     }
 
     @Test
+    void returnsUsageAndUsesOptions() throws InterruptedException {
+        server.enqueue(token("t"));
+        server.enqueue(new MockResponse().setBody("""
+                {"choices":[{"message":{"role":"assistant","content":"Ответ"}}],
+                 "model":"GigaChat-2-Max:2.0","usage":{"prompt_tokens":120,"completion_tokens":45,"total_tokens":165}}"""));
+
+        LlmResult result = client.complete(PROMPT, new LlmOptions("GigaChat-2-Max", 0.3));
+
+        assertThat(result).isEqualTo(new LlmResult("Ответ", "GigaChat-2-Max:2.0", 120, 45));
+        server.takeRequest();
+        assertThat(server.takeRequest().getBody().readUtf8())
+                .contains("\"model\":\"GigaChat-2-Max\"")
+                .contains("\"temperature\":0.3");
+    }
+
+    @Test
     void refreshesTokenOn401() throws InterruptedException {
         server.enqueue(token("old"));
         server.enqueue(new MockResponse().setResponseCode(401));
         server.enqueue(token("new"));
         server.enqueue(answer("Ок"));
 
-        assertThat(client.complete(PROMPT)).isEqualTo("Ок");
+        assertThat(client.complete(PROMPT, LlmOptions.DEFAULT).text()).isEqualTo("Ок");
 
         server.takeRequest();
         server.takeRequest();
@@ -81,7 +97,7 @@ class GigaChatClientTest {
         server.enqueue(token("t"));
         server.enqueue(new MockResponse().setResponseCode(500).setBody("boom"));
 
-        assertThatThrownBy(() -> client.complete(PROMPT))
+        assertThatThrownBy(() -> client.complete(PROMPT, LlmOptions.DEFAULT))
                 .isInstanceOf(LlmException.class)
                 .hasMessageContaining("500");
     }
@@ -92,14 +108,14 @@ class GigaChatClientTest {
         server.enqueue(new MockResponse().setResponseCode(429));
         server.enqueue(answer("После ошибки"));
 
-        assertThatThrownBy(() -> client.complete(PROMPT)).isInstanceOf(LlmException.class);
+        assertThatThrownBy(() -> client.complete(PROMPT, LlmOptions.DEFAULT)).isInstanceOf(LlmException.class);
         // единственный слот освободился — следующий запрос проходит
-        assertThat(client.complete(PROMPT)).isEqualTo("После ошибки");
+        assertThat(client.complete(PROMPT, LlmOptions.DEFAULT).text()).isEqualTo("После ошибки");
     }
 
     @Test
     void missingKeyFailsWithoutRequests() {
-        assertThatThrownBy(() -> client(" ").complete(PROMPT)).isInstanceOf(LlmException.class);
+        assertThatThrownBy(() -> client(" ").complete(PROMPT, LlmOptions.DEFAULT)).isInstanceOf(LlmException.class);
         assertThat(server.getRequestCount()).isZero();
     }
 
