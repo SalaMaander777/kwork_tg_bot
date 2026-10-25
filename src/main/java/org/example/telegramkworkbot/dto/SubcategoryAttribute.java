@@ -11,4 +11,5 @@ import lombok.Setter;
 public class SubcategoryAttribute {
     private long id;
     private String title;
+    private boolean hidden;
 }

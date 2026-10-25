@@ -29,21 +29,9 @@ public class UserEntity {
     @Column(nullable = false)
     private UserState state = UserState.NEW;
 
-
-
-    @ManyToMany
-    @JoinTable(
-            name = "user_categories",
-            joinColumns = @JoinColumn(name = "user_id"),
-            inverseJoinColumns = @JoinColumn(name = "category_id"),
-            uniqueConstraints = {
-                    @UniqueConstraint(
-                            name = "uk_user_category",
-                            columnNames = {"user_id", "category_id"}
-                    )
-            }
-
-
-    )
-    private Set<CategoryEntity> categories = new HashSet<>();
+    // id подкатегорий из kwork_categories.json; с ними сравнивается kwork.category_id
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "user_subcategories", joinColumns = @JoinColumn(name = "user_id"))
+    @Column(name = "subcategory_id")
+    private Set<Long> subcategoryIds = new HashSet<>();
 }

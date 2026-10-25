@@ -21,6 +21,11 @@ public class HelpCommand implements CommandHandler{
 
     @Override
     public void handle(Message message) {
-        messageSender.send(new TextMessage(message.getChatId(), "Я бот который помогает автоматизировать поиск вакансий на kwork"));
+        messageSender.send(new TextMessage(message.getChatId(), """
+                Я присылаю новые заказы с Kwork по выбранным категориям и помогаю написать отклик с помощью AI.
+
+                /categories — выбрать категории
+                /profile — описание о себе для откликов
+                /help — эта справка"""));
     }
 }
