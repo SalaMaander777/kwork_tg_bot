@@ -4,6 +4,7 @@ import org.example.telegramkworkbot.entities.KworkEntity;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -27,9 +28,16 @@ class KworkCardFormatterTest {
 
     @Test
     void keyboardHasReplyAndLink() {
-        var buttons = formatter.keyboard(kwork("x", "y")).getKeyboard().get(0);
+        var buttons = formatter.keyboard(kwork("x", "y"), Optional.empty()).getKeyboard().get(0);
         assertThat(buttons.get(0).getCallbackData()).isEqualTo("reply:gen:42");
         assertThat(buttons.get(1).getUrl()).isEqualTo("https://kwork.ru/projects/42");
+    }
+
+    @Test
+    void keyboardOpensExistingProposal() {
+        var buttons = formatter.keyboard(kwork("x", "y"), Optional.of(7L)).getKeyboard().get(0);
+        assertThat(buttons.get(0).getText()).isEqualTo("📝 Мой отклик");
+        assertThat(buttons.get(0).getCallbackData()).isEqualTo("reply:show:7");
     }
 
     static KworkEntity kwork(String name, String description) {

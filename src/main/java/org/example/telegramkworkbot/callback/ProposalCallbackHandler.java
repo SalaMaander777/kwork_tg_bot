@@ -7,7 +7,10 @@ import org.example.telegramkworkbot.service.ProposalService;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 
-/** reply:gen:&lt;kworkId&gt; — сгенерировать (ещё один) отклик на заказ. */
+/**
+ * reply:gen:&lt;kworkId&gt; — сгенерировать новый вариант отклика;
+ * reply:show:&lt;proposalId&gt; — показать вариант; reply:noop — неактивная кнопка.
+ */
 @Component
 @RequiredArgsConstructor
 public class ProposalCallbackHandler implements CallbackHandler {
@@ -23,12 +26,24 @@ public class ProposalCallbackHandler implements CallbackHandler {
     @Override
     public void handle(CallbackQuery query, CallbackData data) {
         Long chatId = query.getMessage().getChatId();
+        Integer messageId = query.getMessage().getMessageId();
+        Long userId = query.getFrom().getId();
         CallbackData op = CallbackData.parse(data.payload());
-        if (!"gen".equals(op.action())) {
-            sender.send(new CallbackAnswer(chatId, query.getId(), null));
-            return;
+
+        switch (op.action()) {
+            case "gen" -> {
+                if (proposalService.limitReached(userId)) {
+                    sender.send(new CallbackAnswer(chatId, query.getId(),
+                            "Лимит на сегодня исчерпан (" + proposalService.dailyLimit() + " откликов)"));
+                    return;
+                }
+                sender.send(new CallbackAnswer(chatId, query.getId(), "Генерирую отклик…"));
+                proposalService.generate(chatId, messageId, userId, Long.parseLong(op.payload()));
+                return;
+            }
+            case "show" -> proposalService.show(chatId, messageId, userId, Long.parseLong(op.payload()));
+            default -> { } // noop
         }
-        sender.send(new CallbackAnswer(chatId, query.getId(), "Генерирую отклик…"));
-        proposalService.generate(chatId, query.getFrom().getId(), Long.parseLong(op.payload()));
+        sender.send(new CallbackAnswer(chatId, query.getId(), null));
     }
 }

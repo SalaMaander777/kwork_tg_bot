@@ -7,11 +7,13 @@ import org.example.telegramkworkbot.keyboard.Keyboard;
 import org.example.telegramkworkbot.message.Html;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 
 import java.math.BigDecimal;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.Locale;
+import java.util.Optional;
 
 /** Карточка заказа для рассылки. */
 @Component
@@ -55,9 +57,13 @@ public class KworkCardFormatter {
         return sb.toString();
     }
 
-    public InlineKeyboardMarkup keyboard(KworkEntity kwork) {
+    /** @param latestProposalId последний сгенерированный отклик на заказ, если есть */
+    public InlineKeyboardMarkup keyboard(KworkEntity kwork, Optional<Long> latestProposalId) {
+        InlineKeyboardButton reply = latestProposalId
+                .map(id -> Keyboard.button("📝 Мой отклик", "reply", "show:" + id))
+                .orElseGet(() -> Keyboard.button("✍️ Отклик", "reply", "gen:" + kwork.getId()));
         return Keyboard.keyboard(
-                Keyboard.button("✍️ Отклик", "reply", "gen:" + kwork.getId()),
+                reply,
                 Keyboard.urlButton("🔗 Открыть", url(kwork.getId())),
                 Keyboard.button("🙈 Скрыть", "kwork", "hide"));
     }

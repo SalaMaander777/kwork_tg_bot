@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -64,7 +65,7 @@ public class KworkNotifier {
                 if (blocked.contains(userId)) {
                     continue;
                 }
-                SendStatus status = sender.send(new KeyboardMessage(userId, formatter.text(kwork), formatter.keyboard(kwork)));
+                SendStatus status = sender.send(new KeyboardMessage(userId, formatter.text(kwork), formatter.keyboard(kwork, Optional.empty())));
                 if (status == SendStatus.BLOCKED) {
                     blocked.add(userId);
                     userService.setState(userId, UserState.BLOCKED);
