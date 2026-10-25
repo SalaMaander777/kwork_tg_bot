@@ -13,6 +13,7 @@ public class UpdateRouter extends DefaultLongPollingUpdateConsumer {
 
     private final CallbackRouter callbackRouter;
     private final CommandRouter commandRouter;
+    private final TextRouter textRouter;
 
     @Override
     public void consume(Update update) {
@@ -23,7 +24,12 @@ public class UpdateRouter extends DefaultLongPollingUpdateConsumer {
         }
 
         if (update.hasMessage() && update.getMessage().hasText()) {
-            commandRouter.route(update.getMessage());
+            Message message = update.getMessage();
+            if (CommandRouter.extractCommand(message.getText()) != null) {
+                commandRouter.route(message);
+            } else {
+                textRouter.route(message);
+            }
         }
     }
 }

@@ -9,7 +9,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.telegram.telegrambots.meta.api.objects.User;
 
 import java.time.Instant;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -20,11 +24,9 @@ public class UserService {
     /**
      * Создаёт пользователя или обновляет его имя/username.
      * Состояние существующего пользователя не трогает.
-     *
-     * @return true, если пользователь новый
      */
     @Transactional
-    public boolean registerOrUpdateUser(User tgUser) {
+    public UserEntity registerOrUpdateUser(User tgUser) {
         Optional<UserEntity> existing = userRepo.findById(tgUser.getId());
         UserEntity user = existing.orElseGet(() -> newUser(tgUser.getId()));
 
@@ -32,8 +34,7 @@ public class UserService {
         user.setFirstName(tgUser.getFirstName());
         user.setLastName(tgUser.getLastName());
         userRepo.save(user);
-
-        return existing.isEmpty();
+        return user;
     }
 
     @Transactional(readOnly = true)
@@ -46,6 +47,41 @@ public class UserService {
         // save() не нужен: сущность управляется Hibernate внутри транзакции,
         // изменение запишется при коммите
         findOrThrow(userId).setState(state);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<UserState> findState(Long userId) {
+        return userRepo.findById(userId).map(UserEntity::getState);
+    }
+
+    @Transactional(readOnly = true)
+    public Set<Long> getSubcategories(Long userId) {
+        return new HashSet<>(findOrThrow(userId).getSubcategoryIds());
+    }
+
+    @Transactional
+    public void toggleSubcategory(Long userId, Long subcategoryId) {
+        Set<Long> ids = findOrThrow(userId).getSubcategoryIds();
+        if (!ids.remove(subcategoryId)) {
+            ids.add(subcategoryId);
+        }
+    }
+
+    /** Если выбраны все переданные подкатегории — снимает их, иначе выбирает все. */
+    @Transactional
+    public void toggleAll(Long userId, Collection<Long> subcategoryIds) {
+        Set<Long> ids = findOrThrow(userId).getSubcategoryIds();
+        if (ids.containsAll(subcategoryIds)) {
+            ids.removeAll(subcategoryIds);
+        } else {
+            ids.addAll(subcategoryIds);
+        }
+    }
+
+    /** Активные пользователи вместе с выбранными подкатегориями (коллекция EAGER). */
+    @Transactional(readOnly = true)
+    public List<UserEntity> findActive() {
+        return userRepo.findAllByState(UserState.ACTIVE);
     }
 
     private UserEntity findOrThrow(Long userId) {

@@ -2,21 +2,50 @@ spring:
   application:
     name: TelegramKworkBot
   datasource:
-    url: jdbc:postgresql://localhost:5432/mydb
-    username: postgres
-    password: postgres
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/mydb}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
 
   jpa:
+    # Схемой управляет Flyway; таблица kwork принадлежит парсеру, Hibernate её только проверяет
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
+    open-in-view: false
     show-sql: false
     properties:
-      hibernat:
+      hibernate:
         format_sql: true
+
+  flyway:
+    # БД уже не пустая (таблица парсера), поэтому baseline с версии 0, чтобы V1 применилась
+    baseline-on-migrate: true
+    baseline-version: 0
 
 
 bot:
   token: ${BOT_TOKEN}
+
+
+kwork:
+  poll-interval: PT1M
+  batch-size: 100
+
+
+ai:
+  provider: gigachat
+  daily-limit: 20
+  gigachat:
+    # либо Authorization key целиком, либо Client ID + Client Secret
+    auth-key: ${GIGACHAT_AUTH_KEY:}
+    client-id: ${GIGACHAT_CLIENT_ID:}
+    client-secret: ${GIGACHAT_CLIENT_SECRET:}
+    scope: GIGACHAT_API_PERS
+    # GigaChat (Lite), GigaChat-2-Pro, GigaChat-2-Max, GigaChat-3-Ultra — все есть во freemium для физлиц
+    model: ${GIGACHAT_MODEL:GigaChat-2-Max}
+    temperature: 0.8
+    timeout: PT60S
+    max-concurrent: 1 # физлицам доступен один поток
+    ca-cert: classpath:certs/russian_trusted_ca.pem # корневой + выпускающий сертификаты в одном файле
 
 
 logging:

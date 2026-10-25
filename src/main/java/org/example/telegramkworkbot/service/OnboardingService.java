@@ -1,6 +1,7 @@
 package org.example.telegramkworkbot.service;
 
 import lombok.RequiredArgsConstructor;
+import org.example.telegramkworkbot.entities.UserEntity;
 import org.example.telegramkworkbot.enums.UserState;
 import org.example.telegramkworkbot.message.TextMessage;
 import org.example.telegramkworkbot.sender.MessageSender;
@@ -13,18 +14,25 @@ public class OnboardingService {
 
     private final UserService userService;
     private final CategorySelectionService selectionService;
+    private final ProfileService profileService;
     private final MessageSender sender;
 
 
     public void onStart(User tgUser, Long chatId) {
-        boolean isNew = userService.registerOrUpdateUser(tgUser);
-
-        if (!isNew) {
-            sender.send(new TextMessage(chatId, "С возвращением! 👋"));
-            return;
+        UserEntity user = userService.registerOrUpdateUser(tgUser);
+        switch (user.getState()) {
+            case ACTIVE -> sender.send(new TextMessage(chatId,
+                    "С возвращением! 👋 Новые заказы будут приходить сюда.\n/categories — категории, /profile — профиль"));
+            case BLOCKED -> {
+                // пользователь разблокировал бота и снова нажал /start
+                userService.setState(tgUser.getId(), UserState.ACTIVE);
+                sender.send(new TextMessage(chatId, "С возвращением! 👋 Рассылка заказов снова включена."));
+            }
+            case FILLING_PROFILE -> profileService.askProfile(chatId, tgUser.getId());
+            case NEW, CHOOSING_CATEGORY -> {
+                userService.setState(tgUser.getId(), UserState.CHOOSING_CATEGORY);
+                selectionService.start(chatId, tgUser.getId());
+            }
         }
-
-        userService.setState(tgUser.getId(), UserState.CHOOSING_CATEGORY);
-        selectionService.start(chatId);
     }
 }
