@@ -137,7 +137,7 @@ public class MetricsService {
                         m.put(key, rs.getDouble(key));
                     }
                     double deliveries = rs.getDouble("deliveries");
-                    m.put("conversion", deliveries == 0 ? 0 : rs.getDouble("proposal_orders") / deliveries * 100);
+                    m.put("conversion", deliveries == 0 ? 0.0 : rs.getDouble("proposal_orders") / deliveries * 100);
                     return m;
                 })
                 .single();

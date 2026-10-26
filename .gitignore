@@ -38,3 +38,4 @@ build/
 ### Admin UI ###
 admin-ui/node_modules/
 src/main/resources/static/admin/
+.env

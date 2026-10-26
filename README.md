@@ -103,6 +103,23 @@ BOT_TOKEN=...;GIGACHAT_CLIENT_ID=...;GIGACHAT_CLIENT_SECRET=...
 java -jar target/TelegramKworkBot-0.0.1-SNAPSHOT.jar
 ```
 
+## Деплой на сервер (Docker)
+
+Postgres уже работает в Docker; бот подключается к его docker-сети.
+
+```bash
+git clone <repo> && cd TelegramKworkBot
+cp .env.example .env        # заполнить: DB_*, BOT_TOKEN, GIGACHAT_*, ADMIN_*
+docker network ls           # найти сеть Postgres -> DB_NETWORK, имя контейнера -> DB_HOST
+docker compose up -d --build
+docker compose logs -f bot
+```
+
+- Миграции Flyway применяются при старте.
+- Админка слушает `127.0.0.1:8080`. Доступ: `ssh -L 8080:localhost:8080 server` и http://localhost:8080/admin, либо reverse proxy с TLS (`BIND=0.0.0.0` только за ним).
+- Обновление: `git pull && docker compose up -d --build`.
+- Хэш пароля в `.env` — в одинарных кавычках: `ADMIN_PASSWORD_HASH='$2a$12$...'`.
+
 ## Админ-панель
 
 Открывается по адресу **http://localhost:8080/admin**. Без `ADMIN_PASSWORD_HASH` / `ADMIN_PASSWORD` она отключена, бот при этом работает как обычно.
@@ -200,5 +217,5 @@ src/main/resources/
 - [ ] Фильтры: минимальный бюджет, стоп-слова, максимум откликов, тихие часы
 - [ ] Статистика: откликнулся / получил заказ
 - [ ] Другие провайдеры LLM (YandexGPT, Ollama)
-- [ ] Docker Compose для бота и БД
+- [x] Docker Compose для бота (БД — отдельным контейнером)
 - [x] Веб-админка с метриками и управлением
