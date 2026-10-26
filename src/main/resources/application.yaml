@@ -24,6 +24,27 @@ spring:
 
 bot:
   token: ${BOT_TOKEN}
+  enabled: ${BOT_ENABLED:true}
+
+
+server:
+  port: ${PORT:8080}
+  servlet:
+    session:
+      timeout: 12h
+      cookie:
+        name: KWORK_ADMIN
+        http-only: true
+        same-site: strict
+
+
+# Админ-панель: http://localhost:8080/admin
+# Без пароля админка отключена, бот работает как обычно.
+admin:
+  username: ${ADMIN_USERNAME:admin}
+  password-hash: ${ADMIN_PASSWORD_HASH:}  # bcrypt, предпочтительно
+  password: ${ADMIN_PASSWORD:}            # или пароль открытым текстом
+  telegram-id: ${ADMIN_TELEGRAM_ID:}      # твой Telegram ID: тестовые рассылки, доступ во время техработ
 
 
 kwork:

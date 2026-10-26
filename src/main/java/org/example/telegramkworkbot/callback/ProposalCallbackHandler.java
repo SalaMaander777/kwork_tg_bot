@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.example.telegramkworkbot.message.CallbackAnswer;
 import org.example.telegramkworkbot.sender.MessageSender;
 import org.example.telegramkworkbot.service.ProposalService;
+import org.example.telegramkworkbot.settings.SettingsService;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 
@@ -17,6 +18,7 @@ public class ProposalCallbackHandler implements CallbackHandler {
 
     private final ProposalService proposalService;
     private final MessageSender sender;
+    private final SettingsService settings;
 
     @Override
     public String action() {
@@ -32,9 +34,13 @@ public class ProposalCallbackHandler implements CallbackHandler {
 
         switch (op.action()) {
             case "gen" -> {
+                if (!settings.aiEnabled()) {
+                    sender.send(new CallbackAnswer(chatId, query.getId(), "AI временно отключён, попробуйте позже"));
+                    return;
+                }
                 if (proposalService.limitReached(userId)) {
                     sender.send(new CallbackAnswer(chatId, query.getId(),
-                            "Лимит на сегодня исчерпан (" + proposalService.dailyLimit() + " откликов)"));
+                            "Лимит на сегодня исчерпан (" + proposalService.dailyLimit(userId) + " откликов)"));
                     return;
                 }
                 sender.send(new CallbackAnswer(chatId, query.getId(), "Генерирую отклик…"));

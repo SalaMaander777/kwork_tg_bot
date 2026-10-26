@@ -1,0 +1,10 @@
+.git
+.idea
+.mvn/wrapper/maven-wrapper.jar
+target
+admin-ui/node_modules
+src/main/resources/static/admin
+*.iml
+.env
+HELP.md
+**/.DS_Store

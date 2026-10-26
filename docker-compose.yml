@@ -1,0 +1,33 @@
+# Бот + админка. Postgres уже запущен отдельно в Docker — подключаемся к его сети.
+# Имя сети: docker inspect <контейнер-postgres> --format '{{json .NetworkSettings.Networks}}'
+services:
+  bot:
+    build: .
+    image: telegram-kwork-bot
+    container_name: telegram-kwork-bot
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT:-5432}/${DB_NAME}
+      LOGGING_LEVEL_ORG_EXAMPLE: ${LOG_LEVEL:-INFO}
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
+    ports:
+      # Админка по http: по умолчанию только localhost (ssh-туннель или reverse proxy с TLS)
+      - "${BIND:-127.0.0.1}:${PORT:-8080}:8080"
+    networks: [db]
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8080' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  db:
+    name: ${DB_NETWORK}
+    external: true

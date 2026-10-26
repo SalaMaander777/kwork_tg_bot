@@ -2,7 +2,7 @@
 
 Telegram-бот для фрилансеров Kwork: присылает новые заказы из выбранных категорий и помогает написать отклик с помощью AI (GigaChat).
 
-> Текущая версия — **MVP** (`v0.1.0-mvp`).
+> Текущая версия — **MVP** (`v1.0-mvp`).
 
 ## Возможности
 
@@ -13,6 +13,7 @@ Telegram-бот для фрилансеров Kwork: присылает новы
   - несколько вариантов с листанием ◀️ 2/3 ▶️;
   - переключение «📄 Заказ» ↔ «📝 Мой отклик»;
   - дневной лимит генераций на пользователя.
+- **Веб-админка** (`/admin`): дашборд с метриками, управление пользователями, рассылки, настройки и промпт AI на лету. Адаптирована под телефон, есть светлая и тёмная темы.
 
 ## Как это устроено
 
@@ -33,7 +34,8 @@ Telegram-бот для фрилансеров Kwork: присылает новы
 
 ## Стек
 
-- Java 17+, Spring Boot 4, Spring Data JPA, Flyway
+- Java 17+, Spring Boot 4, Spring Data JPA, Spring Security, Flyway
+- Админка: React 18, Vite, TypeScript, Tailwind CSS, Recharts, TanStack Query
 - PostgreSQL
 - [TelegramBots](https://github.com/rubenlagus/TelegramBots) 10 (long polling)
 - GigaChat API (HTTP-клиент на OkHttp), абстракция `LlmClient` для подключения других моделей
@@ -72,6 +74,11 @@ docker run -d --name my-postgres -p 5432:5432 \
 | `GIGACHAT_MODEL` | нет | `GigaChat-2-Max` (по умолчанию), `GigaChat`, `GigaChat-2-Pro`, `GigaChat-3-Ultra` |
 | `DB_URL` | нет | По умолчанию `jdbc:postgresql://localhost:5432/mydb` |
 | `DB_USER` / `DB_PASSWORD` | нет | По умолчанию `postgres` / `postgres` |
+| `ADMIN_USERNAME` | нет | Логин админки, по умолчанию `admin` |
+| `ADMIN_PASSWORD_HASH` | для админки | bcrypt-хэш пароля (или `ADMIN_PASSWORD` открытым текстом) |
+| `ADMIN_TELEGRAM_ID` | нет | Твой Telegram ID: тестовые рассылки себе, доступ к боту во время техработ |
+| `PORT` | нет | HTTP-порт админки, по умолчанию `8080` |
+| `BOT_ENABLED` | нет | `false` — запустить без подключения к Telegram (рассылка заказов тоже не работает) |
 
 \* нужен один из двух вариантов.
 
@@ -95,6 +102,59 @@ BOT_TOKEN=...;GIGACHAT_CLIENT_ID=...;GIGACHAT_CLIENT_SECRET=...
 ./mvnw package -DskipTests
 java -jar target/TelegramKworkBot-0.0.1-SNAPSHOT.jar
 ```
+
+## Деплой на сервер (Docker)
+
+Postgres уже работает в Docker; бот подключается к его docker-сети.
+
+```bash
+git clone <repo> && cd TelegramKworkBot
+cp .env.example .env        # заполнить: DB_*, BOT_TOKEN, GIGACHAT_*, ADMIN_*
+docker network ls           # найти сеть Postgres -> DB_NETWORK, имя контейнера -> DB_HOST
+docker compose up -d --build
+docker compose logs -f bot
+```
+
+- Миграции Flyway применяются при старте.
+- Админка слушает `127.0.0.1:8080`. Доступ: `ssh -L 8080:localhost:8080 server` и http://localhost:8080/admin, либо reverse proxy с TLS (`BIND=0.0.0.0` только за ним).
+- Обновление: `git pull && docker compose up -d --build`.
+- Хэш пароля в `.env` — в одинарных кавычках: `ADMIN_PASSWORD_HASH='$2a$12$...'`.
+
+## Админ-панель
+
+Открывается по адресу **http://localhost:8080/admin**. Без `ADMIN_PASSWORD_HASH` / `ADMIN_PASSWORD` она отключена, бот при этом работает как обычно.
+
+**Пароль.** Хэш bcrypt можно получить так (встроенная в macOS утилита):
+
+```bash
+htpasswd -bnBC 12 "" 'мой-пароль' | tr -d ':\n'
+```
+
+Для локальной разработки можно задать `ADMIN_PASSWORD=...` открытым текстом.
+
+**Разделы:**
+
+| Раздел | Что внутри |
+|---|---|
+| Дашборд | KPI с динамикой к прошлому периоду, графики заказов, доставок, откликов и пользователей, воронка онбординга, топ подкатегорий, тепловая карта активности, расход токенов, состояние парсера, рассылки, GigaChat и Telegram |
+| Пользователи | Поиск и фильтры, экспорт CSV; карточка: профиль, категории, отклики, доставки, события; бан, персональный лимит, сообщение от бота, смена состояния |
+| Заказы | Все заказы парсера: кому разосланы, какие отклики сгенерированы, предпросмотр карточки |
+| Отклики | Лента сгенерированных откликов с моделью, временем и токенами |
+| AI | Редактор системного промпта с тестом на реальном заказе и сравнением с сохранённым; выбор модели и температуры; журнал вызовов и ошибок |
+| Рассылки | Сообщение всем или сегменту (активные, по категориям, неактивные N дней) с предпросмотром «как в Telegram», тест себе, прогресс и остановка |
+| Настройки | Пауза рассылки, интервал проверки, генерация откликов, лимиты, техработы — применяются без перезапуска; информация о системе |
+| Журнал | Все действия в админке: входы, баны, изменения настроек, рассылки |
+
+**Безопасность:** сессия в cookie `HttpOnly` + `SameSite=Strict`, CSRF-токен, блокировка IP на 15 минут после 5 неудачных входов, CSP-заголовки. Для доступа из интернета ставь бота за HTTPS-прокси (nginx, Caddy).
+
+**Разработка фронтенда** (`admin-ui/`):
+
+```bash
+BOT_ENABLED=false ADMIN_PASSWORD=dev ./mvnw spring-boot:run   # бэкенд без Telegram
+cd admin-ui && npm install && npm run dev                      # http://localhost:5173/admin/
+```
+
+Node.js ставить не обязательно: `./mvnw package` сам скачивает Node в `target/` и собирает админку в jar. Собрать без фронтенда: `./mvnw package -Pskip-ui`.
 
 ## Команды бота
 
@@ -121,7 +181,9 @@ java -jar target/TelegramKworkBot-0.0.1-SNAPSHOT.jar
 ## Структура проекта
 
 ```
+admin-ui/            # React-приложение админки
 src/main/java/org/example/telegramkworkbot/
+├── admin/          # Админка: безопасность, REST API /admin/api, метрики, рассылки
 ├── ai/             # LlmClient, GigaChatClient, сертификаты
 ├── callback/       # Обработчики inline-кнопок (reply:*, kwork:*)
 ├── commands/       # /start, /categories, /profile, /help
@@ -131,6 +193,8 @@ src/main/java/org/example/telegramkworkbot/
 ├── router/         # Маршрутизация апдейтов: команды, кнопки, текст
 ├── sender/         # Отправка в Telegram (403/429)
 ├── service/        # Бизнес-логика: категории, профиль, рассылка, отклики
+├── settings/       # Настройки, изменяемые из админки без перезапуска
+├── tracking/       # Сбор событий для метрик: доставки, вызовы LLM, активность
 └── text/           # Обработка текста по состоянию пользователя
 src/main/resources/
 ├── db/migration/          # Flyway-миграции
@@ -153,4 +217,5 @@ src/main/resources/
 - [ ] Фильтры: минимальный бюджет, стоп-слова, максимум откликов, тихие часы
 - [ ] Статистика: откликнулся / получил заказ
 - [ ] Другие провайдеры LLM (YandexGPT, Ollama)
-- [ ] Docker Compose для бота и БД
+- [x] Docker Compose для бота (БД — отдельным контейнером)
+- [x] Веб-админка с метриками и управлением

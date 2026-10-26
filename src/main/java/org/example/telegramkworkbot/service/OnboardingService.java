@@ -6,6 +6,8 @@ import org.example.telegramkworkbot.enums.UserState;
 import org.example.telegramkworkbot.message.TextMessage;
 import org.example.telegramkworkbot.sender.MessageSender;
 import org.springframework.stereotype.Service;
+import org.example.telegramkworkbot.tracking.EventRecorder;
+import org.example.telegramkworkbot.tracking.EventType;
 import org.telegram.telegrambots.meta.api.objects.User;
 
 @Service
@@ -16,10 +18,12 @@ public class OnboardingService {
     private final CategorySelectionService selectionService;
     private final ProfileService profileService;
     private final MessageSender sender;
+    private final EventRecorder events;
 
 
     public void onStart(User tgUser, Long chatId) {
         UserEntity user = userService.registerOrUpdateUser(tgUser);
+        events.record(tgUser.getId(), EventType.START, user.getState().name());
         switch (user.getState()) {
             case ACTIVE -> sender.send(new TextMessage(chatId,
                     "С возвращением! 👋 Новые заказы будут приходить сюда.\n/categories — категории, /profile — профиль"));
