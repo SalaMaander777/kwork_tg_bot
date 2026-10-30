@@ -34,6 +34,11 @@ public class KworkEntity {
     private String userProfileUrl;
     @Column(name = "kwork_count")
     private int kworkCount;
+    // Ведёт парсер: false — заказ пропал с сайта. Бот эти поля только читает.
+    @Column(name = "first_seen_at", insertable = false, updatable = false)
+    private LocalDateTime firstSeenAt;
+    @Column(name = "is_active", insertable = false, updatable = false)
+    private boolean active = true;
 
     public KworkEntity(){
 

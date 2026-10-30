@@ -16,11 +16,11 @@ import org.example.telegramkworkbot.tracking.ActivityTracker;
 import org.example.telegramkworkbot.tracking.DeliveryRecorder;
 import org.example.telegramkworkbot.tracking.DeliveryRecorder.Delivery;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.SchedulingConfigurer;
 import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -61,6 +61,10 @@ public class KworkNotifier implements SchedulingConfigurer {
     @Value("${bot.enabled:true}")
     private boolean botEnabled;
 
+    // заказ, который парсер впервые увидел раньше этого срока, не рассылается (бот простаивал)
+    @Value("${kwork.max-age:PT3H}")
+    private Duration maxAge;
+
     @Override
     public void configureTasks(ScheduledTaskRegistrar registrar) {
         if (!botEnabled) {
@@ -97,8 +101,8 @@ public class KworkNotifier implements SchedulingConfigurer {
         NotifierState state = stateRepo.findById(NotifierState.SINGLETON_ID).orElseGet(this::initState);
         state.setLastRunAt(Instant.now());
 
-        List<KworkEntity> fresh = kworkRepo.findByIdGreaterThanOrderByIdAsc(
-                state.getLastKworkId(), PageRequest.of(0, settings.batchSize()));
+        List<KworkEntity> fresh = kworkRepo.findDeliverable(
+                state.getLastKworkId(), (int) maxAge.toMinutes(), settings.batchSize());
         if (fresh.isEmpty()) {
             stateRepo.save(state);
             return 0;
