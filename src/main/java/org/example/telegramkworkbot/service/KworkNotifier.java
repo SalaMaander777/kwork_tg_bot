@@ -13,14 +13,16 @@ import org.example.telegramkworkbot.sender.MessageSender;
 import org.example.telegramkworkbot.sender.SendStatus;
 import org.example.telegramkworkbot.settings.SettingsService;
 import org.example.telegramkworkbot.tracking.ActivityTracker;
+import org.example.telegramkworkbot.tracking.CardRegistry;
+import org.example.telegramkworkbot.tracking.CardRegistry.Card;
 import org.example.telegramkworkbot.tracking.DeliveryRecorder;
 import org.example.telegramkworkbot.tracking.DeliveryRecorder.Delivery;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.SchedulingConfigurer;
 import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -54,12 +56,17 @@ public class KworkNotifier implements SchedulingConfigurer {
     private final SettingsService settings;
     private final ActivityTracker activity;
     private final DeliveryRecorder deliveries;
+    private final CardRegistry cards;
 
     private final ReentrantLock lock = new ReentrantLock();
 
     // без подключения к Telegram (BOT_ENABLED=false) рассылать нельзя: карточки не дойдут, а курсор сдвинется
     @Value("${bot.enabled:true}")
     private boolean botEnabled;
+
+    // заказ, который парсер впервые увидел раньше этого срока, не рассылается (бот простаивал)
+    @Value("${kwork.max-age:PT3H}")
+    private Duration maxAge;
 
     @Override
     public void configureTasks(ScheduledTaskRegistrar registrar) {
@@ -97,8 +104,8 @@ public class KworkNotifier implements SchedulingConfigurer {
         NotifierState state = stateRepo.findById(NotifierState.SINGLETON_ID).orElseGet(this::initState);
         state.setLastRunAt(Instant.now());
 
-        List<KworkEntity> fresh = kworkRepo.findByIdGreaterThanOrderByIdAsc(
-                state.getLastKworkId(), PageRequest.of(0, settings.batchSize()));
+        List<KworkEntity> fresh = kworkRepo.findDeliverable(
+                state.getLastKworkId(), (int) maxAge.toMinutes(), settings.batchSize());
         if (fresh.isEmpty()) {
             stateRepo.save(state);
             return 0;
@@ -124,13 +131,18 @@ public class KworkNotifier implements SchedulingConfigurer {
         Map<Long, List<Long>> subscribers = subscribersByCategory(users);
         Set<Long> blocked = new HashSet<>();
         List<Delivery> journal = new ArrayList<>();
+        List<Card> sentCards = new ArrayList<>();
         int sent = 0;
         for (KworkEntity kwork : fresh) {
             for (Long userId : subscribers.getOrDefault(kwork.getCategoryId(), List.of())) {
                 if (blocked.contains(userId)) {
                     continue;
                 }
-                SendStatus status = sender.send(new KeyboardMessage(userId, formatter.text(kwork), formatter.keyboard(kwork, Optional.empty())));
+                MessageSender.Sent result = sender.sendTracked(new KeyboardMessage(userId, formatter.text(kwork), formatter.keyboard(kwork, Optional.empty())));
+                SendStatus status = result.status();
+                if (status == SendStatus.OK && result.messageId() != null) {
+                    sentCards.add(new Card(userId, kwork.getId(), result.messageId(), kwork.getKworkCount(), Instant.now()));
+                }
                 journal.add(new Delivery(userId, kwork.getId(), Instant.now(), status));
                 if (status == SendStatus.BLOCKED) {
                     blocked.add(userId);
@@ -142,6 +154,7 @@ public class KworkNotifier implements SchedulingConfigurer {
             }
         }
         deliveries.recordAll(journal);
+        cards.recordAll(sentCards);
         return sent;
     }
 
