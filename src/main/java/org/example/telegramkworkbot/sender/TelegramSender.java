@@ -2,6 +2,7 @@ package org.example.telegramkworkbot.sender;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.telegramkworkbot.message.KeyboardMessage;
 import org.example.telegramkworkbot.message.OutgoingMessage;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
@@ -27,6 +28,18 @@ public class TelegramSender implements MessageSender{
         } catch (TelegramApiException e) {
            log.error("Ошибка сообщения в чат: {}", message.chatId(), e);
            return SendStatus.FAILED;
+        }
+    }
+
+    @Override
+    public Sent sendTracked(KeyboardMessage message) {
+        try {
+            return new Sent(SendStatus.OK, message.deliverAndGet(client).getMessageId());
+        } catch (TelegramApiRequestException e) {
+            return new Sent(handleRequestError(message, e), null);
+        } catch (TelegramApiException e) {
+            log.error("Ошибка сообщения в чат: {}", message.chatId(), e);
+            return new Sent(SendStatus.FAILED, null);
         }
     }
 

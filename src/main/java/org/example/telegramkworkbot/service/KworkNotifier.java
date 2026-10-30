@@ -13,6 +13,8 @@ import org.example.telegramkworkbot.sender.MessageSender;
 import org.example.telegramkworkbot.sender.SendStatus;
 import org.example.telegramkworkbot.settings.SettingsService;
 import org.example.telegramkworkbot.tracking.ActivityTracker;
+import org.example.telegramkworkbot.tracking.CardRegistry;
+import org.example.telegramkworkbot.tracking.CardRegistry.Card;
 import org.example.telegramkworkbot.tracking.DeliveryRecorder;
 import org.example.telegramkworkbot.tracking.DeliveryRecorder.Delivery;
 import org.springframework.beans.factory.annotation.Value;
@@ -54,6 +56,7 @@ public class KworkNotifier implements SchedulingConfigurer {
     private final SettingsService settings;
     private final ActivityTracker activity;
     private final DeliveryRecorder deliveries;
+    private final CardRegistry cards;
 
     private final ReentrantLock lock = new ReentrantLock();
 
@@ -128,13 +131,18 @@ public class KworkNotifier implements SchedulingConfigurer {
         Map<Long, List<Long>> subscribers = subscribersByCategory(users);
         Set<Long> blocked = new HashSet<>();
         List<Delivery> journal = new ArrayList<>();
+        List<Card> sentCards = new ArrayList<>();
         int sent = 0;
         for (KworkEntity kwork : fresh) {
             for (Long userId : subscribers.getOrDefault(kwork.getCategoryId(), List.of())) {
                 if (blocked.contains(userId)) {
                     continue;
                 }
-                SendStatus status = sender.send(new KeyboardMessage(userId, formatter.text(kwork), formatter.keyboard(kwork, Optional.empty())));
+                MessageSender.Sent result = sender.sendTracked(new KeyboardMessage(userId, formatter.text(kwork), formatter.keyboard(kwork, Optional.empty())));
+                SendStatus status = result.status();
+                if (status == SendStatus.OK && result.messageId() != null) {
+                    sentCards.add(new Card(userId, kwork.getId(), result.messageId(), kwork.getKworkCount(), Instant.now()));
+                }
                 journal.add(new Delivery(userId, kwork.getId(), Instant.now(), status));
                 if (status == SendStatus.BLOCKED) {
                     blocked.add(userId);
@@ -146,6 +154,7 @@ public class KworkNotifier implements SchedulingConfigurer {
             }
         }
         deliveries.recordAll(journal);
+        cards.recordAll(sentCards);
         return sent;
     }
 
