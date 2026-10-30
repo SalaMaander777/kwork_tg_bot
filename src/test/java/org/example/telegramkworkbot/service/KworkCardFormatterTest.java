@@ -22,8 +22,26 @@ class KworkCardFormatterTest {
                 .contains("💰 до 15 000 ₽ · ⏱ 5 дн. · 💬 откликов: 7")
                 .contains("📂 SEO аудиты, консультации")
                 .contains("👤 buyer")
-                .contains("…")
-                .doesNotContain("a".repeat(KworkCardFormatter.MAX_DESCRIPTION_LENGTH + 1));
+                .contains("a".repeat(1000))
+                .doesNotContain("…");
+    }
+
+    @Test
+    void longDescriptionFitsTelegramLimitWithoutCuttingEarly() {
+        String text = formatter.text(kwork("Заказ", "б".repeat(10_000)));
+
+        assertThat(text.length()).isLessThanOrEqualTo(KworkCardFormatter.TELEGRAM_MAX_LENGTH);
+        assertThat(text.length()).isGreaterThan(3500);
+        assertThat(text).contains("…").endsWith("👤 buyer");
+    }
+
+    @Test
+    void decodesHtmlEntitiesFromKwork() {
+        String text = formatter.text(kwork("Title &quot;x&quot;", "добавив &quot;страница 2&quot; &amp; ещё"));
+
+        assertThat(text).contains("<b>Title \"x\"</b>")
+                .contains("добавив \"страница 2\" &amp; ещё")
+                .doesNotContain("&quot;");
     }
 
     @Test

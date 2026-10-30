@@ -6,6 +6,7 @@ import org.example.telegramkworkbot.entities.KworkEntity;
 import org.example.telegramkworkbot.keyboard.Keyboard;
 import org.example.telegramkworkbot.message.Html;
 import org.springframework.stereotype.Component;
+import org.springframework.web.util.HtmlUtils;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 
@@ -20,7 +21,10 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class KworkCardFormatter {
 
-    static final int MAX_DESCRIPTION_LENGTH = 700;
+    /** Лимит Telegram на текст сообщения (считается по символам после разбора разметки). */
+    static final int TELEGRAM_MAX_LENGTH = 4096;
+    /** Запас под многоточие и расхождения в подсчёте длины. */
+    private static final int LENGTH_MARGIN = 50;
 
     private final CategoryCatalog catalog;
 
@@ -30,7 +34,7 @@ public class KworkCardFormatter {
 
     public String text(KworkEntity kwork) {
         StringBuilder sb = new StringBuilder();
-        sb.append("<b>").append(Html.escape(kwork.getName())).append("</b>\n");
+        sb.append("<b>").append(Html.escape(plain(kwork.getName()))).append("</b>\n");
 
         StringBuilder meta = new StringBuilder();
         if (kwork.getPriceLimit() != null) {
@@ -48,13 +52,16 @@ public class KworkCardFormatter {
                     .map(KworkSubcategoryDto::getName)
                     .ifPresent(name -> sb.append("📂 ").append(Html.escape(name)).append('\n'));
         }
-        if (kwork.getDescription() != null && !kwork.getDescription().isBlank()) {
-            sb.append('\n').append(Html.escape(Html.truncate(kwork.getDescription().strip(), MAX_DESCRIPTION_LENGTH))).append('\n');
+        String footer = kwork.getUsername() != null ? "\n👤 " + Html.escape(kwork.getUsername()) : "";
+        String description = plain(kwork.getDescription()).strip();
+        if (!description.isEmpty()) {
+            // Описание занимает всё свободное место в пределах лимита Telegram, а не фиксированные N символов.
+            // Длину считаем по тексту без тегов; экранирование (&amp; и т.п.) Telegram разворачивает обратно.
+            int used = visibleLength(sb) + visibleLength(footer) + 2;
+            int budget = Math.max(0, TELEGRAM_MAX_LENGTH - LENGTH_MARGIN - used);
+            sb.append('\n').append(Html.escape(Html.truncate(description, budget))).append('\n');
         }
-        if (kwork.getUsername() != null) {
-            sb.append("\n👤 ").append(Html.escape(kwork.getUsername()));
-        }
-        return sb.toString();
+        return sb.append(footer).toString();
     }
 
     /** @param latestProposalId последний сгенерированный отклик на заказ, если есть */
@@ -66,6 +73,15 @@ public class KworkCardFormatter {
                 reply,
                 Keyboard.urlButton("🔗 Открыть", url(kwork.getId())),
                 Keyboard.button("🙈 Скрыть", "kwork", "hide"));
+    }
+
+    /** Заказы приходят с HTML-сущностями (&quot;, &amp; ...) — превращаем в обычный текст, чтобы не экранировать дважды. */
+    static String plain(String text) {
+        return text == null ? "" : HtmlUtils.htmlUnescape(text);
+    }
+
+    private static int visibleLength(CharSequence html) {
+        return HtmlUtils.htmlUnescape(html.toString().replaceAll("</?[a-z]+>", "")).length();
     }
 
     private static String price(BigDecimal value) {
