@@ -8,7 +8,11 @@ import org.springframework.stereotype.Component;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /** Журнал отправленных карточек заказов. */
 @Slf4j
@@ -19,6 +23,23 @@ public class DeliveryRecorder {
     public record Delivery(Long userId, Long kworkId, Instant sentAt, SendStatus status) {}
 
     private final JdbcTemplate jdbc;
+
+    /** Пары «пользователь:заказ», по которым карточка уже была успешно отправлена. */
+    public Set<String> alreadyDelivered(Collection<Long> kworkIds) {
+        if (kworkIds.isEmpty()) {
+            return Set.of();
+        }
+        String marks = String.join(",", Collections.nCopies(kworkIds.size(), "?"));
+        List<String> keys = jdbc.query(
+                "select user_id, kwork_id from deliveries where status = 'OK' and kwork_id in (" + marks + ")",
+                (rs, i) -> key(rs.getLong("user_id"), rs.getLong("kwork_id")),
+                kworkIds.toArray());
+        return new HashSet<>(keys);
+    }
+
+    public static String key(long userId, long kworkId) {
+        return userId + ":" + kworkId;
+    }
 
     public void recordAll(List<Delivery> deliveries) {
         if (deliveries.isEmpty()) {

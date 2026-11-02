@@ -38,6 +38,9 @@ public class KworkEntity {
     // Ведёт парсер: false — заказ пропал с сайта. Бот эти поля только читает.
     @Column(name = "first_seen_at", insertable = false, updatable = false)
     private Instant firstSeenAt;
+    /** Первое появление или поднятие заказа (ведёт парсер); по нему выбираются заказы для рассылки. */
+    @Column(name = "activated_at", insertable = false, updatable = false)
+    private Instant activatedAt;
     @Column(name = "is_active", insertable = false, updatable = false)
     private boolean active = true;
 

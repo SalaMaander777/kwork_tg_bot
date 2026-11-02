@@ -6,24 +6,28 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 
 @Repository
 public interface KworkRepo extends JpaRepository<KworkEntity, Long>{
 
     /**
-     * Новые заказы для рассылки: только те, что ещё есть на сайте и появились у парсера
-     * не раньше чем maxAgeMinutes назад (после простоя бота старьё не рассылаем).
+     * Новые заказы для рассылки после курсора (afterActivatedAt, afterId): только те, что ещё есть на сайте
+     * и появились (или были подняты) не раньше чем maxAgeMinutes назад - после простоя бота старьё не рассылаем.
+     * Порядок и курсор по времени появления, а не по id: заказы публикуются после модерации не по порядку id,
+     * а старые заказы поднимаются заново.
      */
     @Query(value = """
             select * from kwork
-            where kwork_order_id > :afterId
+            where (activated_at, kwork_order_id) > (:afterActivatedAt, :afterId)
               and is_active
-              and first_seen_at >= now() - make_interval(mins => :maxAgeMinutes)
-            order by kwork_order_id
+              and activated_at >= now() - make_interval(mins => :maxAgeMinutes)
+            order by activated_at, kwork_order_id
             limit :limit
             """, nativeQuery = true)
-    List<KworkEntity> findDeliverable(@Param("afterId") long afterId,
+    List<KworkEntity> findDeliverable(@Param("afterActivatedAt") Instant afterActivatedAt,
+                                      @Param("afterId") long afterId,
                                       @Param("maxAgeMinutes") int maxAgeMinutes,
                                       @Param("limit") int limit);
 

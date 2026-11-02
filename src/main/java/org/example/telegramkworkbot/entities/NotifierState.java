@@ -25,10 +25,14 @@ public class NotifierState {
     @Column(nullable = false)
     private Long lastKworkId;
 
+    /** Курсор рассылки — пара (время появления, id) последнего обработанного заказа; id разрешает равные времена. */
+    private Instant lastActivatedAt;
+
     private Instant lastRunAt;
 
-    public NotifierState(Long lastKworkId) {
+    public NotifierState(Long lastKworkId, Instant lastActivatedAt) {
         this.id = SINGLETON_ID;
         this.lastKworkId = lastKworkId;
+        this.lastActivatedAt = lastActivatedAt;
     }
 }

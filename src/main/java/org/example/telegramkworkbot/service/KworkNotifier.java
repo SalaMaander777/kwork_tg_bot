@@ -105,7 +105,7 @@ public class KworkNotifier implements SchedulingConfigurer {
         state.setLastRunAt(Instant.now());
 
         List<KworkEntity> fresh = kworkRepo.findDeliverable(
-                state.getLastKworkId(), (int) maxAge.toMinutes(), settings.batchSize());
+                state.getLastActivatedAt(), state.getLastKworkId(), (int) maxAge.toMinutes(), settings.batchSize());
         if (fresh.isEmpty()) {
             stateRepo.save(state);
             return 0;
@@ -118,7 +118,9 @@ public class KworkNotifier implements SchedulingConfigurer {
             log.info("Рассылка на паузе, пропущено заказов: {}", fresh.size());
         }
 
-        state.setLastKworkId(fresh.get(fresh.size() - 1).getId());
+        KworkEntity last = fresh.get(fresh.size() - 1);
+        state.setLastActivatedAt(last.getActivatedAt());
+        state.setLastKworkId(last.getId());
         stateRepo.save(state);
         log.info("Новых заказов: {}, отправлено карточек: {}", fresh.size(), sent);
         return fresh.size();
@@ -129,13 +131,15 @@ public class KworkNotifier implements SchedulingConfigurer {
                 .filter(user -> !activity.isBanned(user.getId()))
                 .toList();
         Map<Long, List<Long>> subscribers = subscribersByCategory(users);
+        // заказ, который пользователь уже получал (например, его подняли заново), повторно не отправляем
+        Set<String> already = deliveries.alreadyDelivered(fresh.stream().map(KworkEntity::getId).toList());
         Set<Long> blocked = new HashSet<>();
         List<Delivery> journal = new ArrayList<>();
         List<Card> sentCards = new ArrayList<>();
         int sent = 0;
         for (KworkEntity kwork : fresh) {
             for (Long userId : subscribers.getOrDefault(kwork.getCategoryId(), List.of())) {
-                if (blocked.contains(userId)) {
+                if (blocked.contains(userId) || already.contains(DeliveryRecorder.key(userId, kwork.getId()))) {
                     continue;
                 }
                 MessageSender.Sent result = sender.sendTracked(new KeyboardMessage(userId, formatter.text(kwork), formatter.keyboard(kwork, Optional.empty())));
@@ -169,18 +173,19 @@ public class KworkNotifier implements SchedulingConfigurer {
         return result;
     }
 
-    /** Сдвинуть курсор на текущий максимум: всё, что уже есть в базе, рассылаться не будет. */
+    /** Сдвинуть курсор на текущий момент: всё, что уже есть в базе, рассылаться не будет. */
     public long resetCursor() {
         NotifierState state = stateRepo.findById(NotifierState.SINGLETON_ID).orElseGet(this::initState);
+        state.setLastActivatedAt(Instant.now());
         state.setLastKworkId(kworkRepo.findMaxId());
         stateRepo.save(state);
         return state.getLastKworkId();
     }
 
-    /** Первый запуск: не рассылаем старые заказы, начинаем с текущего максимума. */
+    /** Первый запуск: не рассылаем старые заказы, начинаем с текущего момента. */
     private NotifierState initState() {
-        NotifierState state = new NotifierState(kworkRepo.findMaxId());
-        log.info("Курсор рассылки инициализирован: {}", state.getLastKworkId());
+        NotifierState state = new NotifierState(kworkRepo.findMaxId(), Instant.now());
+        log.info("Курсор рассылки инициализирован: {} / {}", state.getLastActivatedAt(), state.getLastKworkId());
         return stateRepo.save(state);
     }
 
