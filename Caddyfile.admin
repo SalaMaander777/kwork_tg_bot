@@ -1,0 +1,12 @@
+# HTTPS для админки по IP сервера (порт ADMIN_HTTPS_PORT, по умолчанию 8443), отдельно от прокси сайта на 80/443.
+# У IP нет домена, поэтому сертификат самоподписанный (tls internal): браузер один раз попросит подтвердить исключение.
+# Для нормального сертификата заведите домен и замените адрес ниже на него.
+{
+	default_sni {$ADMIN_PUBLIC_HOST}
+}
+
+https://{$ADMIN_PUBLIC_HOST}:8443 {
+	tls internal
+	encode zstd gzip
+	reverse_proxy telegram-kwork-bot:8080
+}

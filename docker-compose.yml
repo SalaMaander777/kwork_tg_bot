@@ -27,6 +27,26 @@ services:
         max-size: "10m"
         max-file: "5"
 
+  # HTTPS-прокси админки по IP сервера. Порты 80/443 заняты прокси сайта, поэтому свой порт.
+  admin-proxy:
+    image: caddy:2-alpine
+    container_name: kwork-admin-proxy
+    restart: unless-stopped
+    depends_on: [bot]
+    environment:
+      ADMIN_PUBLIC_HOST: ${ADMIN_PUBLIC_HOST:-localhost}
+    ports:
+      - "${ADMIN_HTTPS_PORT:-8443}:8443"
+    volumes:
+      - ./Caddyfile.admin:/etc/caddy/Caddyfile:ro
+      - admin_proxy_data:/data
+      - admin_proxy_config:/config
+    networks: [db]
+
+volumes:
+  admin_proxy_data:
+  admin_proxy_config:
+
 networks:
   db:
     name: ${DB_NETWORK}
