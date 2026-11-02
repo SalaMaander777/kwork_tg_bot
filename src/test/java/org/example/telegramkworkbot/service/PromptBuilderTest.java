@@ -29,6 +29,17 @@ class PromptBuilderTest {
     }
 
     @Test
+    void htmlEntitiesFromKworkAreDecodedForModel() {
+        String content = builder.build(
+                KworkCardFormatterTest.kwork("Логотип &quot;Ромашка&quot;", "Нужен дизайн &amp; фирстиль &lt;3"),
+                Optional.empty(), PromptBuilder.SYSTEM).get(1).content();
+
+        assertThat(content).contains("Заказ: Логотип \"Ромашка\"")
+                .contains("Нужен дизайн & фирстиль <3")
+                .doesNotContain("&quot;").doesNotContain("&amp;");
+    }
+
+    @Test
     void truncatesLongDescriptionAndHandlesEmptyProfile() {
         String content = builder.build(
                 KworkCardFormatterTest.kwork("x", "b".repeat(10_000)), Optional.empty(), PromptBuilder.SYSTEM).get(1).content();

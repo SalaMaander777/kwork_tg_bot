@@ -22,7 +22,7 @@ public class ProposalView {
     static final String NOOP = "noop";
 
     public String text(KworkEntity kwork, Proposal proposal) {
-        return "✍️ <b>Отклик на «" + Html.escape(Html.truncate(kwork.getName(), 80)) + "»</b>\n\n"
+        return "✍️ <b>Отклик на «" + Html.escape(Html.truncate(KworkCardFormatter.plain(kwork.getName()), 80)) + "»</b>\n\n"
                 + "<blockquote>" + Html.escape(proposal.getText()) + "</blockquote>";
     }
 

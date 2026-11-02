@@ -22,6 +22,13 @@ class ProposalViewTest {
     }
 
     @Test
+    void titleWithHtmlEntitiesIsNotEscapedTwice() {
+        String text = view.text(KworkCardFormatterTest.kwork("Логотип &quot;Ромашка&quot; &amp; визитки", "y"), proposal(1L, "a"));
+
+        assertThat(text).startsWith("✍️ <b>Отклик на «Логотип \"Ромашка\" &amp; визитки»</b>");
+    }
+
+    @Test
     void singleVariantHasNoPager() {
         Proposal only = proposal(1L, "a");
         List<InlineKeyboardRow> rows = view.keyboard(only, List.of(only)).getKeyboard();

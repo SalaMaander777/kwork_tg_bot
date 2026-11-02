@@ -33,7 +33,7 @@ public class PromptBuilder {
     private final CategoryCatalog catalog;
 
     public List<ChatMessage> build(KworkEntity kwork, Optional<String> about, String systemPrompt) {
-        StringBuilder sb = new StringBuilder("Заказ: ").append(kwork.getName()).append('\n');
+        StringBuilder sb = new StringBuilder("Заказ: ").append(KworkCardFormatter.plain(kwork.getName())).append('\n');
         if (kwork.getCategoryId() != null) {
             catalog.sub(kwork.getCategoryId())
                     .map(KworkSubcategoryDto::getName)
@@ -46,7 +46,7 @@ public class PromptBuilder {
             sb.append("Срок: ").append(kwork.getMaxDays()).append(" дн.\n");
         }
         sb.append("Описание:\n")
-                .append(Html.truncate(kwork.getDescription() == null ? "" : kwork.getDescription().strip(), MAX_DESCRIPTION_LENGTH))
+                .append(Html.truncate(KworkCardFormatter.plain(kwork.getDescription()).strip(), MAX_DESCRIPTION_LENGTH))
                 .append("\n\n");
 
         sb.append("Об исполнителе:\n").append(about

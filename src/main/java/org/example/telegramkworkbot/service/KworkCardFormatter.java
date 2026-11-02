@@ -76,7 +76,7 @@ public class KworkCardFormatter {
     }
 
     /** Заказы приходят с HTML-сущностями (&quot;, &amp; ...) — превращаем в обычный текст, чтобы не экранировать дважды. */
-    static String plain(String text) {
+    public static String plain(String text) {
         return text == null ? "" : HtmlUtils.htmlUnescape(text);
     }
 
