@@ -50,6 +50,11 @@ admin:
 kwork:
   poll-interval: PT1M
   batch-size: 100
+  card-refresh:      # обновление числа откликов в уже отправленных карточках
+    interval: PT1M
+    ttl-hours: 6
+    min-gap-minutes: 2
+  max-age: PT3H   # не рассылать заказы, которые парсер увидел раньше
 
 
 ai:

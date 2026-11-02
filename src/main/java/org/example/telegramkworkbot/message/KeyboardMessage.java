@@ -3,6 +3,7 @@ package org.example.telegramkworkbot.message;
 import org.telegram.telegrambots.meta.api.methods.ParseMode;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.LinkPreviewOptions;
+import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
@@ -16,7 +17,12 @@ public record KeyboardMessage(
 
     @Override
     public void deliver(TelegramClient client) throws TelegramApiException {
-        client.execute(SendMessage.builder()
+        deliverAndGet(client);
+    }
+
+    /** То же, что {@link #deliver}, но возвращает отправленное сообщение (нужен его id). */
+    public Message deliverAndGet(TelegramClient client) throws TelegramApiException {
+        return client.execute(SendMessage.builder()
                 .chatId(chatId)
                 .text(text)
                 .parseMode(ParseMode.HTML)

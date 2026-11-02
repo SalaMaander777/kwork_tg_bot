@@ -75,7 +75,7 @@ public class ProposalService {
     @Async
     public void generate(Long chatId, Integer messageId, Long userId, Long kworkId) {
         Optional<KworkEntity> kwork = kworkRepo.findById(kworkId);
-        if (kwork.isEmpty()) {
+        if (kwork.isEmpty() || !kwork.get().isActive()) {
             sender.send(new TextMessage(chatId, "Заказ не найден — возможно, он уже снят с публикации."));
             return;
         }
