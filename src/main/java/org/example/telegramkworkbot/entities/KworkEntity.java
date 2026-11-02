@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
 
 @Setter
@@ -36,7 +37,7 @@ public class KworkEntity {
     private int kworkCount;
     // Ведёт парсер: false — заказ пропал с сайта. Бот эти поля только читает.
     @Column(name = "first_seen_at", insertable = false, updatable = false)
-    private LocalDateTime firstSeenAt;
+    private Instant firstSeenAt;
     @Column(name = "is_active", insertable = false, updatable = false)
     private boolean active = true;
 
